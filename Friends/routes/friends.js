@@ -5,23 +5,11 @@ var bodyParser = require('body-parser');
 var tools =require('../common/tools');
 
 var sqlite3 = require('sqlite3').verbose();
+var dbo = require("../common/dbOperation");
 
-//prepare db and table;
-var db = new sqlite3.Database('./db/friends.db');
-var sql =" drop table friends";
-db.serialize(function(){
-      //db.run(sql);
-      sql ="CREATE TABLE if not exists friends ";
-      sql = sql +   "(ID INTEGER PRIMARY KEY   AUTOINCREMENT,";
-      sql = sql +  "  ReqEmail Text not null,";
-      sql = sql +  "  TargetEmail Text not null,";
-      sql = sql +  "  Type integer not null)";
-      console.log(sql);
-      db.run(sql);
-});
-db.close();
+dbo.EnsureDBPrepared();
 
-router.route('/MakeFriends')
+router.route('/makeFriends')
       .post(function(req, res) {
           var ary = tools.getEmailPair(req.body); 
           var reqEmail=ary[0];
@@ -44,8 +32,8 @@ router.route('/MakeFriends')
             });
        })
 
-router.route('/GetFriends')
-      .post(function(req, res){
+router.route('/getFriends')
+      .get(function(req, res){
              var email = tools.getEmailSingle(req.body);
              console.log(email);
              var db = new sqlite3.Database('./db/friends.db');
@@ -80,8 +68,8 @@ router.route('/GetFriends')
           });
         })
     
-router.route('/GetCommonFriends')
-      .post(function(req, res){
+router.route('/getCommonFriends')
+      .get(function(req, res){
                  var emails =tools.getEmailPair(req.body);
                  var first = emails[0];
                  var second = emails[1];
@@ -90,11 +78,11 @@ router.route('/GetCommonFriends')
     
                  db.serialize(function() {
                     var sql = " select a.email from "
-                        sql = sql + " (select distinct ReqEmail as email from friends where TargetEmail ='" + first + "'";
-                        sql = sql + "  union select distinct TargetEmail from friends where ReqEmail='" + first + "') a";
+                        sql = sql + " (select distinct ReqEmail as email from friends where TargetEmail ='" + first + "' and Type=1";
+                        sql = sql + "  union select distinct TargetEmail from friends where ReqEmail='" + first + "' and Type=1) a";
                         sql = sql + " where a.email in ";
-                        sql = sql +  "( select distinct ReqEmail from friends where TargetEmail ='" + second + "'";
-                        sql = sql + " union select distinct TargetEmail from friends where ReqEmail='" + second + "')";
+                        sql = sql +  "( select distinct ReqEmail from friends where TargetEmail ='" + second + "' and Type = 1";
+                        sql = sql + " union select distinct TargetEmail from friends where ReqEmail='" + second + "' and Type =1)";
                         
                         console.log(sql);
                         db.all(sql, function(err, rows){
@@ -120,7 +108,7 @@ router.route('/GetCommonFriends')
                    });
               })
         
-router.route('/SubUpdates')
+router.route('/subUpdates')
       .post(function(req, res) {
                   var emails = tools.getEmailSubBlockUpdates(req.body);
                   var reqEmail = emails[0];
@@ -145,7 +133,7 @@ router.route('/SubUpdates')
                });
             })
 
-router.route('/BlockUpdates')
+router.route('/blockUpdates')
       .post(function(req, res) {
                 var emails = tools.getEmailSubBlockUpdates(req.body);
                 var reqEmail = emails[0];
@@ -169,8 +157,8 @@ router.route('/BlockUpdates')
                     });
         })
 
-router.route('/GetEmailsForUpdates')
-      .post(function(req, res) {
+router.route('/getEmailsForUpdates')
+      .get(function(req, res) {
           
           var emails = tools.getEmailReceiveUpdates(req.body);
           var email = emails[0];
@@ -201,11 +189,21 @@ router.route('/GetEmailsForUpdates')
                                     else
                                       ret = ret + rows[i].email + ",";
                                 }
+
+                                var extraEmailNum = 0;
                                 if(appendEmails.length > 0)
-                                    ret = ret + "," + appendEmails;
-                                
+                                  {
+                                     if (ret.length> 0) 
+                                          ret = ret + "," + appendEmails;
+                                     else 
+                                          ret = appendEmails;
+                                  
+                                     extraEmailNum = appendEmails.split(',').length;
+                                  }
+                            
+                                var num =  rows.length + extraEmailNum;
                                 ret ="[" + ret + "]";
-                                ret = '"sucess":true,"friends":' + ret + ',"Count":' + rows.length;
+                                ret = '"sucess":true,"friends":' + ret + ',"Count":' + num;
                                 res.status(200).send(ret);
                               }
                         });
